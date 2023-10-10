@@ -99,6 +99,7 @@ def login():
     form = LoginForm()
 
     if form.validate_on_submit():
+        
         user = User.authenticate(form.username.data, form.password.data)
 
         if user:
@@ -115,7 +116,10 @@ def login():
 def logout():
     """Handle logout of user."""
 
-    # IMPLEMENT THIS
+
+    do_logout()
+    flash(f"Successfully Logged Out!")
+    return redirect("/")
 
 
 ##############################################################################

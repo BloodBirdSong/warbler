@@ -4,7 +4,7 @@ from datetime import datetime
 
 import bcrypt
 from flask_sqlalchemy import SQLAlchemy
-salt = "$2b$12$rCZtT/T3k1fU1/Jq3Zv9w.".encode('utf8')
+
 # bcrypt = Bcrypt()
 db = SQLAlchemy()
 
@@ -140,12 +140,14 @@ class User(db.Model):
         # hashed_pwd = bcrypt.generate_password_hash(password).decode('UTF-8')
         
         bytes = password.encode('utf-8')
+        salt = bcrypt.gensalt()
         hashed_password = bcrypt.hashpw(bytes, salt)
+        hashed=hashed_password.decode('utf-8')
 
         user = User(
             username=username,
             email=email,
-            password=hashed_password,
+            password=hashed,
             image_url=image_url,
         )
 
@@ -164,12 +166,13 @@ class User(db.Model):
         """
 
         user = cls.query.filter_by(username=username).first()
-
+        coded_password = password.encode('utf-8')
+        user_password = user.password.encode('utf-8')
+        
         if user:
-            is_auth = bcrypt.check_password_hash(user.password, password)
-            if is_auth:
+            if bcrypt.checkpw(coded_password, user_password):
                 return user
-
+         
         return False
 
 
