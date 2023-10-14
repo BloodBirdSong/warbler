@@ -3,8 +3,10 @@ import os
 from flask import Flask, render_template, request, flash, redirect, session, g
 from flask_debugtoolbar import DebugToolbarExtension
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy import or_
 
-from forms import UserAddForm, LoginForm, MessageForm
+
+from forms import UserAddForm, LoginForm, MessageForm, UserEditForm
 from models import db, connect_db, User, Message
 from models import User, Message, Follows
 from csv import DictReader
@@ -211,14 +213,37 @@ def stop_following(follow_id):
 @app.route('/users/profile', methods=["GET", "POST"])
 def profile():
     """Update profile for current user."""
+    if not g.user:
+        flash("Access unauthorized.", "danger")
+        return redirect("/")
+    
+    form = UserEditForm()
+    user = User.query.get_or_404(g.user.id)
+    # user = User.authenticate(form.username.data, form.password.data)
 
-    # IMPLEMENT THIS
+    if form.validate_on_submit():
+        if User.authenticate(user.username, form.password.data):
+            try:
+                user.username = form.username.data
+                user.email = form.email.data
+                user.image_url = form.image_url.data or User.image_url.default.arg,
+                user.header_image_url = form.header_image_url.data or User.header_image_url.default.arg,
+                user.bio = form.bio.data
+                user.location = form.location.data
+                db.session.commit()
+                
+                flash(f"User has been updated.")
+                return redirect(f"/users/{user.id}")
+            except Exception as error:
+                return error
+
+    return render_template('users/edit.html', form=form, user=user)
 
 
 @app.route('/users/delete', methods=["POST"])
 def delete_user():
-    """Delete user."""
-
+    """Deletes juest user."""
+    # what about all assocated messages and followers
     if not g.user:
         flash("Access unauthorized.", "danger")
         return redirect("/")
@@ -263,21 +288,23 @@ def seed():
     thisis for testing only
     Show form if GET. If valid, update message and redirect to user page.
     """
+    try:
+        db.drop_all()
+        db.create_all()
 
-    db.drop_all()
-    db.create_all()
+        with open('generator/users.csv') as users:
+            db.session.bulk_insert_mappings(User, DictReader(users))
 
-    with open('generator/users.csv') as users:
-        db.session.bulk_insert_mappings(User, DictReader(users))
+        with open('generator/messages.csv') as messages:
+            db.session.bulk_insert_mappings(Message, DictReader(messages))
 
-    with open('generator/messages.csv') as messages:
-        db.session.bulk_insert_mappings(Message, DictReader(messages))
+        with open('generator/follows.csv') as follows:
+            db.session.bulk_insert_mappings(Follows, DictReader(follows))
 
-    with open('generator/follows.csv') as follows:
-        db.session.bulk_insert_mappings(Follows, DictReader(follows))
+        db.session.commit()
 
-    db.session.commit()
-
+    except Exception as error:
+       return error
     return redirect("/")
 
 
@@ -319,10 +346,33 @@ def homepage():
     if g.user:
         messages = (Message
                     .query
+                    .filter(g.user.id == Message.user_id)
                     .order_by(Message.timestamp.desc())
                     .limit(100)
                     .all())
+       
+        for user in g.user.following:
+            messages = messages + db.session.query(Message).filter(
+                user.id == Message.user_id).all()
+       
+        messages.sort(key=lambda s: s.timestamp, reverse=True)
+        messages = messages[:100]
+        
+       
+        # db.session.query(Message).filter(user.id == Message.user_id).all()
 
+        # db.session.query(Message).filter(Message.user_id == "4").all()
+        # db.session.query(Message).filter(g.user.id == Message.user_id).all()
+        
+        # db.session.query(Message).filter(
+        #     db.session.in_(g.user.is_following(Message.user)))
+        # messages = (Message
+        #             .query
+        #             .filter(g.user.is_following(Message.user))
+        #             .order_by(Message.timestamp.desc())
+        #             .limit(100)
+        #             .all())
+#  or (g.user.is_following_by_id(Message.user_id))
         return render_template('home.html', messages=messages)
 
     else:
