@@ -45,6 +45,7 @@ class Likes(db.Model):
     message_id = db.Column(
         db.Integer,
         db.ForeignKey('messages.id', ondelete='cascade'),
+        unique=True
     )
 
 
@@ -174,9 +175,10 @@ class User(db.Model):
         """
 
         user = cls.query.filter_by(username=username).first()
+        coded_password = password.encode('utf-8')
+        user_password = user.password.encode('utf-8')
+        
         if user:
-            coded_password = password.encode('utf-8')
-            user_password = user.password.encode('utf-8')
             if bcrypt.checkpw(coded_password, user_password):
                 return user
          
